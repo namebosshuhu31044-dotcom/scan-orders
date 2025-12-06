@@ -1,116 +1,94 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile UI Web</title>
-
+    <meta charset="UTF-8">
+    <title>Order Packing System</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f5f7fa;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 480px;
-            padding: 20px;
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            font-size: 24px;
-        }
-
-        .card {
-            background: white;
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            margin-top: 20px;
-        }
-
-        button {
-            width: 100%;
-            padding: 16px;
-            background: #4a90e2;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 18px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        /* Popup */
-        .popup-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 999;
-        }
-
-        .popup-box {
-            background: #fff;
-            width: 80%;
-            max-width: 320px;
-            padding: 20px;
-            border-radius: 16px;
-            text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }
-
-        .popup-btn {
-            margin-top: 20px;
-            padding: 12px;
-            background: #6aa9ff;
-            border: none;
-            color: white;
-            width: 100%;
-            border-radius: 12px;
-            font-size: 16px;
-            cursor: pointer;
-        }
+        body { font-family: Arial; padding: 20px; }
+        input, select { padding: 8px; margin: 5px 0; width: 100%; }
+        .box { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #aaa; padding: 6px; text-align: left; }
     </style>
 </head>
-
 <body>
 
-<div class="container">
-    <h1>My Website</h1>
+<h2>📦 ระบบตรวจสอบรายการออเดอร์ด้วยการสแกน</h2>
 
-    <div class="card">
-        <p>UI แบบมือถือ พร้อมใช้งาน</p>
-        <button onclick="openPopup()">กดฉัน</button>
-    </div>
+<label>เลขออเดอร์</label>
+<input id="orderId" placeholder="เช่น 2512-001-00101">
+
+<label>เลือกหมายเลขกล่อง</label>
+<select id="boxSelect">
+    <option value="1">กล่องที่ 1</option>
+    <option value="2">กล่องที่ 2</option>
+    <option value="3">กล่องที่ 3</option>
+</select>
+
+<div class="box">
+    <h3>สแกนสินค้า</h3>
+    <input id="scanInput" placeholder="สแกนบาร์โค้ดที่นี่">
 </div>
 
-<div class="popup-bg" id="popup">
-    <div class="popup-box">
-        <h2>หน้านี้บอกว่า</h2>
-        <p>คุณกดปุ่ม!</p>
-        <button class="popup-btn" onclick="closePopup()">ตกลง</button>
-    </div>
+<div class="box">
+    <h3>📦 รายการสินค้าภายในกล่องนี้</h3>
+    <table id="boxTable">
+        <thead>
+            <tr>
+                <th>Barcode</th>
+                <th>Item Name</th>
+                <th>QTY Scanned</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 </div>
 
 <script>
-    function openPopup() {
-        document.getElementById("popup").style.display = "flex";
-    }
+    const productDB = {
+        "8859808303125": "HAPPY HAIR CLIP SET เซ็ตกิ๊บติดผม แฮปปี้",
+        "8859808303132": "SUNDAY HAIR CLIP SET เซ็ตกิ๊บติดผม ซันเดย์",
+        "8859808302159": "MAGIC COLOR BLUSH #01 PURPLE SPELL",
+        "41000996": "POPPY SUNDAE Magnetic Phone Stand ที่ติดโทรศัพท์แม่เหล็ก ป๊อบปี้ซันเดย์",
+        "41000997": "MERRY BERRY Magnetic Phone Stand ที่ติดโทรศัพท์แม่เหล็ก เมอรี่เบอร์รี่"
+    };
 
-    function closePopup() {
-        document.getElementById("popup").style.display = "none";
+    let boxData = {};
+
+    document.getElementById("scanInput").addEventListener("input", function() {
+        const code = this.value.trim();
+        const box = document.getElementById("boxSelect").value;
+
+        if (!boxData[box]) boxData[box] = {};
+
+        if (productDB[code]) {
+            if (!boxData[box][code]) {
+                boxData[box][code] = { name: productDB[code], qty: 0 };
+            }
+            boxData[box][code].qty++;
+
+            renderTable(box);
+        } else {
+            alert("❌ ไม่พบสินค้านี้ในระบบ");
+        }
+
+        this.value = "";
+    });
+
+    function renderTable(box) {
+        const tbody = document.querySelector("#boxTable tbody");
+        tbody.innerHTML = "";
+
+        for (const code in boxData[box]) {
+            const item = boxData[box][code];
+            tbody.innerHTML += `
+                <tr>
+                    <td>${code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.qty}</td>
+                </tr>
+            `;
+        }
     }
 </script>
 
