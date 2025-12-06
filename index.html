@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบสแกนออเดอร์</title>
+
+<style>
+    body { font-family: sans-serif; padding: 20px; }
+
+    input, select {
+        font-size: 18px;
+        padding: 8px;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    #scanBtn {
+        background: #0084ff;
+        color: white;
+        padding: 12px;
+        border: none;
+        width: 100%;
+        font-size: 20px;
+        border-radius: 8px;
+    }
+
+    table { 
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    th, td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        font-size: 16px;
+    }
+
+    .ok { background: #b2ffb2; }      /* ครบ */
+    .less { background: #fff7a8; }    /* ขาด */
+    .over { background: #ffb2a8; }    /* เกิน */
+</style>
+</head>
+
+<body>
+
+<h2>📦 ระบบสแกนออเดอร์</h2>
+
+<label>เลือกเลขออเดอร์</label>
+<select id="orderSelect"></select>
+
+<label>เลือกกล่อง</label>
+<select id="boxSelect"></select>
+
+<label>สแกนสินค้า</label>
+<input id="barcodeInput" placeholder="สแกนที่นี่..." autofocus />
+
+<button id="scanBtn">สแกน</button>
+
+<div id="msg"></div>
+
+<h3>📄 รายการสินค้าในออเดอร์</h3>
+<table id="orderTable">
+    <thead>
+        <tr>
+            <th>Barcode</th>
+            <th>ชื่อสินค้า</th>
+            <th>ต้องสแกน</th>
+            <th>สแกนแล้ว</th>
+            <th>สถานะ</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwFAVGzDWuEXoSGUKoGpXzoH24dY9svYzT5XBYBlhyy53Eg_Gi29k0v_esHBcU2wQal/exec";
+
+let orderData = [];
+let scanSummary = {};
+
+async function loadOrder(orderId) {
+    // อ่าน orders จาก Google Sheet (ผ่าน published CSV)
+    const url = `https://docs.google.com/spreadsheets/d/1L_K0Vw7nRp9UswyM5nb5fgJoJ3B3c2N6zpo4wfYRFHI/gviz/tq?tqx=out:csv&sheet=orders`;
+    const res = await fetch(url);
+    const csv = await res.text();
+
+    const lines = csv.split("\n").map(x => x.split(","));
+
+    orderData = lines
+        .filter(r => r[0] === orderId)
+        .map(r => ({
+            order_id: r[0],
+            barcode: r[1],
+            sku: r[2],
+            qty: Number(r[3])
+        }));
+
+    renderTable();
+}
+
+function renderTable() {
+    const tbody = document.querySelector("#orderTable tbody");
+    tbody.innerHTML = "";
+
+    orderData.forEach(item => {
+        const scanned = scanSummary[item.barcode] || 0;
+
+        let status = "";
+        let css = "";
+
+        if (scanned < item.qty) {
+            status = "ขาด " + (item.qty - scanned);
+            css = "less";
+        } else if (scanned == item.qty) {
+            status = "ครบ";
+            css = "ok";
+        } else {
+            status = "เกิน " + (scanned - item.qty);
+            css = "over";
+        }
+
+        tbody.innerHTML += `
+            <tr class="${css}">
+                <td>${item.barcode}</td>
+                <td>${item.sku}</td>
+                <td>${item.qty}</td>
+                <td>${scanned}</td>
+                <td>${status}</td>
+            </tr>`;
+    });
+}
+
+async function sendScan() {
+    const orderId = document.getElementById("orderSelect").value;
+    const boxNo = document.getElementById("boxSelect").value;
+    const barcode = document.getElementById("barcodeInput").value;
+
+    if (!barcode) return;
+
+    const payload = {
+        order_id: orderId,
+        box_no: boxNo,
+        barcode: barcode,
+        qty: 1
+    };
+
+    const res = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    document.getElementById("msg").innerHTML = "📌 " + data.sku_name;
+
+    scanSummary[barcode] = (scanSummary[barcode] || 0) + 1;
+
+    renderTable();
+
+    document.getElementById("barcodeInput").value = "";
+    document.getElementById("barcodeInput").focus();
+}
+
+// เตรียม dropdown เริ่มต้น
+function init() {
+    let order = prompt("กรอกเลขออเดอร์");
+    if (!order) return;
+
+    document.getElementById("orderSelect").innerHTML =
+        `<option value="${order}">${order}</option>`;
+
+    document.getElementById("boxSelect").innerHTML = `
+        <option value="1">กล่อง 1</option>
+        <option value="2">กล่อง 2</option>
+        <option value="3">กล่อง 3</option>
+    `;
+
+    loadOrder(order);
+}
+
+document.getElementById("scanBtn").onclick = sendScan;
+
+// สแกนด้วยการกด Enter
+document.getElementById("barcodeInput").addEventListener("keypress", e => {
+    if (e.key === "Enter") sendScan();
+});
+
+init();
+</script>
+
+</body>
+</html>
